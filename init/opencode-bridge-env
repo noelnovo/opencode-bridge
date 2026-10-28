@@ -1,0 +1,37 @@
+#!/bin/sh
+# Exports the opencode-bridge configuration from Vault into the service
+# environment. Sourced by /etc/init.d/opencode-bridge as root.
+#
+# Never call `exit` in this file: it is sourced, and an exit would terminate the
+# OpenRC start routine before the daemon is launched.
+#
+# Secrets are never printed. Only the presence of a value is reported.
+
+_load_bridge_env() {
+    [ -r /etc/opencode/vault.env ] || {
+        echo "opencode-bridge: /etc/opencode/vault.env is not readable" >&2
+        return 0
+    }
+    . /etc/opencode/vault.env || return 0
+
+    _payload=$(curl -sf -m 10 -H "X-Vault-Token: $VAULT_TOKEN" \
+        "$VAULT_ADDR/v1/downops/data/opencode") || {
+        echo "opencode-bridge: Vault read of downops/data/opencode failed" >&2
+        unset VAULT_TOKEN VAULT_ADDR
+        return 0
+    }
+
+    for _key in KEYCLOAK_AUTOMATION_CLIENT_ID \
+                KEYCLOAK_AUTOMATION_CLIENT_SECRET OPENCODE_OIDC_ISSUER; do
+        _value=$(printf '%s' "$_payload" | jq -r --arg k "$_key" '.data.data[$k] // empty')
+        if [ -n "$_value" ]; then
+            export "$_key=$_value"
+        else
+            echo "opencode-bridge: $_key is missing in Vault" >&2
+        fi
+    done
+
+    unset _payload _key _value VAULT_TOKEN VAULT_ADDR
+}
+
+_load_bridge_env

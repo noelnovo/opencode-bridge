@@ -1,0 +1,50 @@
+#!/bin/sh
+# Mirrors every DownOps git repository from the dev container (110) into
+# /srv/downops/repos, source-only, for the opencode-bridge read-only workspace.
+#
+# Runs from root's crontab via `su -s /bin/sh opencode -c ...` (user crontabs do
+# not fire on this container: the opencode user's shell is /sbin/nologin).
+#
+# Excludes build output, dependency trees, VCS history and secret-bearing files.
+# The read-only agent therefore sees source, docs, manifests and CI config only.
+set -u
+
+DEST=/srv/downops/repos
+SSH_CONFIG=/var/lib/opencode/.ssh/config
+LOG=/var/log/opencode-contract/sync.log
+STAMP="$DEST/.synced-at"
+
+mkdir -p "$DEST"
+
+REPOS=$(ssh -F "$SSH_CONFIG" -o BatchMode=yes -o ConnectTimeout=10 dev \
+    'cd /home/dev || exit 1; for d in *; do [ -d "$d/.git" ] && printf "%s\n" "$d"; done' 2>/dev/null) || {
+    echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) repo listing failed" >> "$LOG"
+    exit 1
+}
+
+[ -n "$REPOS" ] || {
+    echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) no repos found" >> "$LOG"
+    exit 1
+}
+
+status=0
+for repo in $REPOS; do
+    mkdir -p "$DEST/$repo"
+    rsync -a --delete \
+        --exclude=node_modules --exclude=.next --exclude=.git \
+        --exclude=dist --exclude=build --exclude=.turbo --exclude=coverage \
+        --exclude=.venv --exclude=venv --exclude=__pycache__ --exclude=.pytest_cache \
+        --exclude=test-results --exclude=playwright-report --exclude=.cache \
+        --exclude='*.tgz' --exclude='*.log' --exclude='*.pyc' \
+        --exclude='.env' --exclude='.env.*' --exclude='*.key' --exclude='*.pem' \
+        --exclude='*.p12' --exclude='*.jks' --exclude='id_rsa*' --exclude='id_ed25519*' \
+        -e "ssh -F $SSH_CONFIG -o BatchMode=yes -o ConnectTimeout=10" \
+        "dev:/home/dev/$repo/" "$DEST/$repo/" >> "$LOG" 2>&1 || {
+        echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) rsync FAILED: $repo" >> "$LOG"
+        status=1
+    }
+done
+
+date -u +%Y-%m-%dT%H:%M:%SZ > "$STAMP"
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) sync ok ($(printf '%s\n' $REPOS | wc -l | tr -d ' ') repos)" >> "$LOG"
+exit $status

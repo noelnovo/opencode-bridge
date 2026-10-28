@@ -1,0 +1,34 @@
+#!/sbin/openrc-run
+
+name="opencode-bridge"
+description="Read-only backend-contract bridge for external OpenCode agents"
+
+command="/usr/bin/node"
+command_args="/opt/opencode-bridge/bridge.mjs"
+command_user="opencode:opencode"
+directory="/var/lib/opencode-bridge"
+pidfile="/run/${RC_SVCNAME}.pid"
+command_background=true
+output_log="/var/log/opencode-bridge/bridge.log"
+error_log="/var/log/opencode-bridge/bridge.err"
+
+export HOME=/var/lib/opencode
+
+start_pre() {
+    checkpath --directory --owner opencode:opencode --mode 0750 /var/lib/opencode-bridge
+    checkpath --directory --owner opencode:opencode --mode 0750 /var/log/opencode-bridge
+    . /usr/local/sbin/opencode-bridge-env
+    if [ -z "${OPENCODE_OIDC_ISSUER:-}" ]; then
+        eerror "OPENCODE_OIDC_ISSUER is not set; refusing to start the bridge (OAuth only)"
+        return 1
+    fi
+    if [ ! -f /opt/opencode-bridge/bridge.mjs ]; then
+        eerror "/opt/opencode-bridge/bridge.mjs is missing"
+        return 1
+    fi
+}
+
+depend() {
+    need net
+    after opencode
+}

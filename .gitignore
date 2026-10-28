@@ -1,0 +1,19 @@
+# runtime state and logs live outside the repository
+*.log
+*.bak.*
+session.json
+
+# no secrets ever: the env loader reads them from Vault at start time
+.env
+.env.*
+*.key
+*.pem
+*.p12
+*.jks
+
+# editor / OS noise
+.DS_Store
+*.swp
+.idea/
+.vscode/
+node_modules/
