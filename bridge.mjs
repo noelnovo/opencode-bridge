@@ -44,8 +44,8 @@ const WORKSPACE_DIR = path.resolve(process.env.BRIDGE_WORKSPACE_DIR || '/srv');
  * the remote agent may read any file the `opencode` user can. */
 const FILES_ROOT = path.resolve(process.env.BRIDGE_FILES_ROOT || '/');
 const MODEL = {
-  providerID: process.env.BRIDGE_MODEL_PROVIDER || 'deepseek',
-  id: process.env.BRIDGE_MODEL_ID || 'deepseek-flash',
+  providerID: process.env.BRIDGE_MODEL_PROVIDER || 'github-copilot',
+  id: process.env.BRIDGE_MODEL_ID || 'gpt-6.1-sol',
 };
 const STATE_DIR = process.env.BRIDGE_STATE_DIR || '/var/lib/opencode-bridge';
 const LOG_DIR = process.env.BRIDGE_LOG_DIR || '/var/log/opencode-bridge';

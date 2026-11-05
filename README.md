@@ -82,7 +82,7 @@ Loaded by `init/opencode-bridge-env` at service start, as root, from Vault KV v2
 | `BRIDGE_REQUIRED_GROUP` | optional | required Keycloak group, default `admin` |
 | `BRIDGE_WORKSPACE_DIR` | optional | agent working directory, default `/srv` |
 | `BRIDGE_FILES_ROOT` | optional | root for the file tools, default `/` |
-| `BRIDGE_MODEL_PROVIDER` / `BRIDGE_MODEL_ID` | optional | session model, default `deepseek` / `deepseek-flash` |
+| `BRIDGE_MODEL_PROVIDER` / `BRIDGE_MODEL_ID` | optional | session model, default `github-copilot` / `gpt-6.1-sol` |
 | `BRIDGE_PORT` / `BRIDGE_BIND` / `BRIDGE_API_BASE` | optional | `4780` / `0.0.0.0` / `http://127.0.0.1:4096` |
 | `BRIDGE_PER_MINUTE` / `BRIDGE_MAX_QUEUE` / `BRIDGE_ASK_TIMEOUT_MS` | optional | `10` / `3` / `600000` |
 | `BRIDGE_STATE_DIR` / `BRIDGE_LOG_DIR` | optional | `/var/lib/opencode-bridge` / `/var/log/opencode-bridge` |
@@ -187,8 +187,11 @@ The session is reused between questions; `reset: true` starts a fresh one.
   otherwise the bridge keeps answering inside the old session.
 - **The MCP client caches `initialize` / `tools/list`.** Reconnect the client after changing tool
   descriptions or permissions.
-- **Model choice matters.** An OpenRouter model failed with `provider.quota`; the bridge pins
-  `deepseek/deepseek-flash`.
+- **Model choice matters.** The bridge defaults to `github-copilot/gpt-6.1-sol`.
+  An earlier OpenRouter model failed with `provider.quota`; DeepSeek Flash was the
+  historical fallback. Changing the default does not change an existing stored
+  session: switch its model through the OpenCode session API without deleting the
+  conversation. Prompt Gateway and the global OpenCode model are independent.
 - **Do not hand-roll JWK/DER import** — `createPublicKey({ key: jwk, format: 'jwk' })` is the
   supported, dependency-free route.
 - **Rate limiting runs before input validation**, so malformed floods are limited too.
