@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, statSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, statSync, writeFileSync, symlinkSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import os from 'node:os';
 import path from 'node:path';
 import { TaskBridge, BOOTSTRAP } from '../tasks.mjs';
@@ -304,4 +306,33 @@ test('unconfirmed dispatch holds queue and never retries the prompt', async (t) 
   const queued = await f.submit({ workflow: 'other' }); await f.bridge.tick();
   assert.equal((await f.get(queued)).status, 'queued');
   assert.equal(attempts, 1);
+});
+
+test('versioned symlink entrypoint starts the actual HTTP listener', async (t) => {
+  const directory = mkdtempSync(path.join(os.tmpdir(), 'bridge-launch-test-'));
+  const entrypoint = path.join(directory, 'bridge.mjs');
+  symlinkSync(fileURLToPath(new URL('../bridge.mjs', import.meta.url)), entrypoint);
+  const child = spawn(process.execPath, [entrypoint], {
+    env: { PATH: process.env.PATH, HOME: directory, BRIDGE_BIND: '127.0.0.1', BRIDGE_PORT: '0',
+      BRIDGE_STATE_DIR: path.join(directory, 'state'), BRIDGE_LOG_DIR: path.join(directory, 'log'), BRIDGE_WORKSPACE_DIR: directory,
+      OPENCODE_OIDC_ISSUER: 'https://synthetic-issuer.test', KEYCLOAK_AUTOMATION_CLIENT_ID: 'synthetic', KEYCLOAK_AUTOMATION_CLIENT_SECRET: 'synthetic-test-input' },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  t.after(async () => {
+    if (child.exitCode === null) {
+      child.kill('SIGTERM');
+      await new Promise((resolve) => child.once('exit', resolve));
+    }
+  });
+  const port = await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Symlink listener did not start')), 5000);
+    child.once('exit', () => { clearTimeout(timer); reject(new Error('Symlink entrypoint exited without listening')); });
+    child.stdout.on('data', (chunk) => {
+      const match = /listening on (\d+)/.exec(chunk.toString());
+      if (match) { clearTimeout(timer); resolve(Number(match[1])); }
+    });
+  });
+  const health = await fetch(`http://127.0.0.1:${port}/health`);
+  assert.equal(health.status, 200);
+  assert.equal((await health.json()).version, '4.0.0');
 });

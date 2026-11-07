@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /** DownOps OAuth task-delegation bridge. No remote-shell or direct-file API. */
 import { createServer } from 'node:http';
-import { appendFileSync, chmodSync, existsSync, mkdirSync, renameSync, statSync } from 'node:fs';
+import { appendFileSync, chmodSync, existsSync, mkdirSync, realpathSync, renameSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { makeAuth, makeAPI } from './auth.mjs';
@@ -167,7 +167,7 @@ export function start() {
   server.requestTimeout = 30000;
   server.headersTimeout = 10000;
   server.listen(Number(process.env.BRIDGE_PORT || 4780), process.env.BRIDGE_BIND || '0.0.0.0', () => {
-    console.log('DownOps task bridge v4 listening');
+    console.log(`DownOps task bridge v4 listening on ${server.address().port}`);
     tasks.start();
   });
   for (const signal of ['SIGTERM', 'SIGINT']) process.once(signal, () => {
@@ -178,6 +178,6 @@ export function start() {
   });
   return { server, tasks };
 }
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
   try { start(); } catch { console.error('Bridge startup failed; check configuration and protected state permissions'); process.exitCode = 1; }
 }

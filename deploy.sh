@@ -23,6 +23,7 @@ ROOT=/opt/opencode-bridge
 VERSION=$(sha256sum bridge.mjs auth.mjs tasks.mjs | sha256sum | cut -c1-16)
 RELEASE="$ROOT/releases/$VERSION"
 mkdir -p "$RELEASE"
+chmod 755 "$ROOT/releases" "$RELEASE"
 for file in bridge.mjs auth.mjs tasks.mjs; do
   if [ -f "$RELEASE/$file" ]; then
     cmp "$file" "$RELEASE/$file"
@@ -47,7 +48,22 @@ done
 ln -s "releases/$VERSION/bridge.mjs" "$ROOT/bridge-next.mjs"
 mv -f "$ROOT/bridge-next.mjs" "$ROOT/bridge.mjs"
 printf 'Activated source; restarting only opencode-bridge. Backup: %s\n' "$BACKUP"
-rc-service opencode-bridge restart
-curl --max-time 10 -fsS http://127.0.0.1:4780/health >/dev/null
-test "$(curl --max-time 10 -s -o /dev/null -w '%{http_code}' http://127.0.0.1:4780/mcp)" = 401
+rollback() {
+  [ "$(readlink "$ROOT/bridge.mjs")" = "releases/$VERSION/bridge.mjs" ] || { echo 'Entrypoint changed concurrently; refusing automatic rollback' >&2; return 1; }
+  rc-service opencode-bridge stop
+  if [ -f "$BACKUP/previous-target" ]; then
+    ln -s "$(cat "$BACKUP/previous-target")" "$ROOT/bridge-rollback.mjs"
+  else
+    cp -p "$BACKUP/bridge.mjs" "$ROOT/bridge-rollback.mjs"
+  fi
+  mv -f "$ROOT/bridge-rollback.mjs" "$ROOT/bridge.mjs"
+  rc-service opencode-bridge start
+  echo 'Previous entrypoint restored; task/session history preserved.' >&2
+}
+if ! rc-service opencode-bridge restart; then rollback; exit 1; fi
+if ! curl --max-time 10 -fsS http://127.0.0.1:4780/health >/dev/null; then rollback; exit 1; fi
+if [ "$(curl --max-time 10 -s -o /dev/null -w '%{http_code}' http://127.0.0.1:4780/mcp)" != 401 ]; then
+  echo 'Unexpected authentication result; owner review required' >&2
+  exit 1
+fi
 echo 'Bridge healthy; anonymous MCP rejected. Reconnect clients to refresh tools.'
