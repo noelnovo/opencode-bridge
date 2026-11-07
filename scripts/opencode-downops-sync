@@ -1,12 +1,12 @@
 #!/bin/sh
 # Mirrors every DownOps git repository from the dev container (110) into
-# /srv/downops/repos, source-only, for the opencode-bridge read-only workspace.
+# /srv/downops/repos, source-only, for the server agent's reference workspace.
 #
 # Runs from root's crontab via `su -s /bin/sh opencode -c ...` (user crontabs do
 # not fire on this container: the opencode user's shell is /sbin/nologin).
 #
 # Excludes build output, dependency trees, VCS history and secret-bearing files.
-# The read-only agent therefore sees source, docs, manifests and CI config only.
+# Mirrors contain source/docs, not authoritative Git history or runtime secrets.
 set -u
 
 DEST=/srv/downops/repos

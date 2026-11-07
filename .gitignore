@@ -2,6 +2,8 @@
 *.log
 *.bak.*
 session.json
+tasks.sqlite*
+.test-tmp/
 
 # no secrets ever: the env loader reads them from Vault at start time
 .env
